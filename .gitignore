@@ -1,0 +1,5 @@
+*.o
+mach_kernel
+rebuild
+*.log
+.idea/
