@@ -2,4 +2,6 @@
 mach_kernel
 rebuild
 *.log
+kernel_bin.h
+initramfs_bin.h
 .idea/

@@ -8,7 +8,7 @@
 #include <font.h>
 
 linear_framebuffer_t    fb;
-console_priv_t          con;
+static console_priv_t   con;
 char                    print_buf[PRINT_BUFFER_SIZE];
 
 static
