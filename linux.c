@@ -23,11 +23,7 @@ unsigned int    initramfs_bin_len = 0;
 // Video parameters
 extern linear_framebuffer_t fb;
 
-static uint32_t round_up(uintn_t num, uintn_t multiple)
-{
-    uint32_t mask = multiple - 1;
-    return (num + mask) & ~mask;
-}
+#define ROUND_UP(num, multiple) (num + (multiple - 1)) & ~(multiple - 1)
 
 static void *get_rsdp_from_systbl(efi_system_table_32_t *systbl)
 {
@@ -89,7 +85,7 @@ noreturn void load_linux(void)
     uint32_t real_kernel_len = kernel_bin_len - ((kernel_bin[0x1f1] + 1) * 512);
 
     // Determine where a safe place in memory to copy the kernel to is
-    uint32_t kernel_loadaddr = round_up(gBA->kernel_base + gBA->kernel_size + initramfs_bin_len,
+    uint32_t kernel_loadaddr = ROUND_UP(gBA->kernel_base + gBA->kernel_size + initramfs_bin_len,
                                         LINUX_KERNEL_LOAD_INCREMENT);
 
     // Copy kernel to the correct address
@@ -112,13 +108,12 @@ noreturn void load_linux(void)
 
     if (!(setup_header->loadflags & LOADED_HIGH))
     {
-        fail(__FILE__, __LINE__, "Kernels that load at 0x10000 are unsupported!");
+        fail(__FILE__, __LINE__, "zImage kernels are unsupported; please use a bzImage");
     }
 
     // Configure the initramfs
     if (initramfs_bin_len)
     {
-
         // we should actually copy the initramfs to high memory to avoid kernel oops at free_init_pages()
         // counterintuitively, this seems to lead to more available RAM once booted.
         uint32_t ramdisk_loadaddr = gBA->kernel_base + gBA->kernel_size;
@@ -156,10 +151,12 @@ noreturn void load_linux(void)
     // Setup ACPI
     bp.acpi_rsdp_addr = (uint32_t) get_rsdp_from_systbl((efi_system_table_32_t *) gBA->efi_sys_tbl);
 
-    // Some kernels seem to not play well with the Apple TVs EFI and will triple fault if the EFI loader signature
+    // Some kernels seem to not play well with the Apple TV's EFI and will triple fault if the EFI loader signature
     // is specified.
     // For this reason, we do NOT load the kernel in EFI mode; instead we copy the SMBIOS to low memory so that
     // Linux can see it even if it's not booted in EFI mode.
+    // This means that an EFI-enabled kernel is not required, but if you're building a non-EFI kernel in 2025,
+    // you need help.
 
     copy_smbios_to_lowmem((efi_system_table_32_t *) gBA->efi_sys_tbl);
 
