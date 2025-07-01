@@ -158,6 +158,7 @@ noreturn void load_linux(void)
     // This means that an EFI-enabled kernel is not required, but if you're building a non-EFI kernel in 2025,
     // you need help.
 
+    // Copy the SMBIOS table to the only place Linux can find it
     copy_smbios_to_lowmem((efi_system_table_32_t *) gBA->efi_sys_tbl);
 
     // Setup E820

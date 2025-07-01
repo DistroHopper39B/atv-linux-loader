@@ -1,28 +1,36 @@
-# Apple TV 1st Generation Example Code
-This project is intended as a reference implementation of everything involved in getting code to execute on an original
-Apple TV. Unlike [atv-bootloader](https://github.com/davilla/atv-bootloader), this project is permissively licensed
-and will compile with the latest versions of Clang without issue.
+# Modern Linux on the Original Apple TV
+This bootloader will allow you to boot Linux on an Apple TV (1st generation) and Intel Macs with 32-bit EFI (though for
+all but the MacBook2,1 consider using UEFI GRUB). Unlike [atv-bootloader](https://github.com/davilla/atv-bootloader) this
+bootloader will compile with modern Clang and boot distributions with giant ramdisks such as [Debian](https://debian.org).
 
-## What's included
-* Standard C string and memory manipulation functions based on [Baselibc](https://github.com/PetteriAimonen/Baselibc)
-* 8x16 font and text console support with 32-bit color, line wrap, and scrolling (these functions are slow and not 
-double buffered but get the job done)
-* Full printf support with [tinyprintf](http://www.sparetimelabs.com/tinyprintf/tinyprintf.php)
+## How this loader works
+The original Apple TV is an EFI-based machine like Intel Macs, but can only boot Apple EFI files. 
 
-## What's not included
-* Dynamic memory allocator
-* IDE or USB drivers
-* Free coffee
+## Installing this on your Apple TV
+**Note: Due to Linux's superior handing of GPT disks with non-standard partition types I highly recommend setting this
+up on Linux.**
 
-## Testing this on your Apple TV
-**Note: Due to Linux's superior handing of GPT disks with non-standard partition types I highly recommend doing development
-of anything targeting the Apple TV on Linux.**
+### Installing Linux
+Use a VM to install a 32-bit Linux distro (I recommend Alpine Linux, but Debian will work too). Image it
+over to (or directly install it to) either a USB flash drive or IDE hard drive.
 
-### Build `atvlib`
+### Formatting the USB/Hard Drive (this should be done on Linux)
+* Install [GParted](https://gparted.org/) for your distro.
+* Connect a USB drive to your computer.
+* Open GParted and select your USB drive.
+* Resize the existing Linux partition. 
+* Go to `Partition -> New`. Set the filesystem to `fat32` and the label to `boot`.
+* Apply the changes.
+* Select your new partition and go to `Partition -> Flags`, then check the `atvrecv` box.
+* Close GParted. The new partition should show up in your file manager's device list. If it doesn't, disconnect and
+reconnect it.
+
+### Build `linux-loader-appletv`
 #### macOS
 * Install the Xcode CLI tools: `xcode-select --install`
 * Clone this repo and `cd` into it
-* Type `make` (ignore any warnings about deprecated 32-bit support)
+* Type `make KERNEL=/path/to/vmlinuz INITRAMFS=/path/to/initrd`, using the paths to the Linux kernel and initramfs from
+the installation you just made (ignore any warnings about deprecated 32-bit support)
 
 #### Linux
 * Install Clang, autoconf, automake, and libtool
@@ -36,20 +44,10 @@ make -j$(nproc)
 sudo make install
 ```
 * Clone this repo and `cd` into it
-* Type `make` (ignore any warnings about `/System/Library/Frameworks`)
+* Type `make KERNEL=/path/to/vmlinuz INITRAMFS=/path/to/initrd`, using the paths to the Linux kernel and initramfs from
+the installation you just made (ignore any warnings about `/System/Library/Frameworks`)
 #### Windows
 Use WSL or a VM or something, I don't know. Or just dual boot Linux.
-
-### Format a USB drive (This should be done on Linux)
-* Install [GParted](https://gparted.org/) for your distro.
-* Connect a USB drive to your computer.
-* Open GParted and select your USB drive.
-* Go to `Device -> Create Partition Table`. If necessary, unmount existing partitions.
-* Set the partition table type to `gpt` and click Apply. **WARNING: THIS WILL DELETE ALL DATA ON YOUR USB FLASH DRIVE!!!**
-* Go to Partition -> New. Set the filesystem to fat32 and the label to boot.
-* Apply the changes.
-* Select your new partition and go to Partition -> Flags, then check the atvrecv box.
-* Close GParted. The disk should show up in your file manager's device list. If it doesn't, disconnect and reconnect it.
 
 ### Gather and copy necessary files (This should be done on Linux)
 * `boot.efi`:
@@ -57,13 +55,20 @@ Use WSL or a VM or something, I don't know. Or just dual boot Linux.
   * Download an Apple TV update image: `wget https://mesu.apple.com/data/OS/061-7495.20100210.TAVfr/2Z694-6013-013.dmg`
     (~235MB in size, SHA-1 hash of `97623d8d21bb59b0f4dc9d1b1c037f25c9fe09c3`)
   * Extract `boot.efi` from the image: `7z e 2Z694-6013-013.dmg OSBoot/System/Library/CoreServices/boot.efi`
-  * Copy `boot.efi` to the root of the USB drive
+  * Copy `boot.efi` to the boot partition you just created on the USB drive
 * `Dummy.kext`:
   * Grab `Dummy.kext.zip` from https://github.com/DistroHopper39B/DummyKext/releases and extract it
-  * On the root of the USB drive, create the `System/Library/Extensions` folders
+  * On the boot partition on the USB drive, create the `System/Library/Extensions` folders
   * Copy `Dummy.kext` to the `Extensions` folder you just created
-* Copy `com.apple.Boot.plist` and `mach_kernel` to the root directory
-* Connect the USB drive to the TV and power cycle it
+* Copy `com.apple.Boot.plist` and `mach_kernel` to the root of the partition
+
+### Configure the kernel parameters
+In order to tell Linux what disk to boot from, among other things, you'll need to copy the kernel parameters from the
+stock bootloader to this one. These parameters are usually stored in `/boot/grub/grub.cfg` or `/boot/syslinux/syslinux.cfg`.
+Find the line with `root=UUID=` or something like that, and copy everything after the path to the Linux kernel. Paste it
+into the `Kernel Flags` key in `com.apple.Boot.plist`.
+
+With all of this done, turn on your Apple TV and Linux should boot!
 
 ## Configuring the Boot Process (`com.apple.Boot.plist`)
 Boot-time configuration is done within the [com.apple.Boot.plist](com.apple.Boot.plist) file. The following
@@ -77,5 +82,5 @@ shown.
 
 `Kernel`: This is the name of the kernel file to be loaded by `boot.efi`. `mach_kernel` is the default name.
 
-`Kernel Flags`: This is the command line text sent to `atvlib`. Its maximum length is 1024 bytes.
+`Kernel Flags`: This is the command line text sent to the Linux kernel. Its maximum length is 1024 bytes.
 
